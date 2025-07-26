@@ -1,0 +1,90 @@
+body {
+    width: 300px;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+}
+
+h1 {
+    font-size: 18px;
+    margin-bottom: 15px;
+    color: #333;
+}
+
+button {
+    background: #4285f4;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+button:hover {
+    background: #3367d6;
+}
+
+button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+button:disabled:hover {
+    background: #ccc;
+}
+
+#status {
+    margin-top: 15px;
+    font-size: 14px;
+    color: #666;
+    max-height: 200px;
+    overflow-y: auto;
+    line-height: 1.4;
+    padding: 8px;
+    border-radius: 4px;
+    background: #f8f9fa;
+}
+
+#grocery-list {
+    width: 100%;
+    height: 150px;
+    margin-bottom: 15px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+#grocery-list:focus {
+    outline: none;
+    border-color: #4285f4;
+}
+
+#model-selection {
+    width: 200px;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-right: 10px;
+    background: white;
+}
+
+#model-selection:focus {
+    outline: none;
+    border-color: #4285f4;
+}
+
+.model-controls {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.hidden {
+    display: none;
+}

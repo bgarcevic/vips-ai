@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "name": "Nemlai",
+  "version": "1.0",
+  "description": "Din personlige nemlig shopping assistent",
+  "content_security_policy": {
+    "extension_pages": "style-src-elem 'self' https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com; script-src 'self' 'wasm-unsafe-eval'; default-src 'self' data:; connect-src 'self' data: http://localhost:8000 https://huggingface.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.huggingface.co https://raw.githubusercontent.com https://cdn-lfs-us-1.hf.co/ https://www.googleapis.com/ https://www.nemlig.com https://webapi.prod.knl.nemlig.it"
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "webNavigation",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://*/",
+    "https://*/"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Nemlai",
+    "default_icon": {
+      "16": "icons/icon_16.svg",
+      "48": "icons/icon_48.svg",
+      "128": "icons/icon_128.svg"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icons/icon_16.svg",
+    "48": "icons/icon_48.svg",
+    "128": "icons/icon_128.svg"
+  }
+}

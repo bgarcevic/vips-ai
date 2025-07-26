@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="popup.css">
+</head>
+
+<body>
+    <h1>Nemlai</h1>
+    <p>
+        1: Download din agent (1-2 min)
+    </p>
+    <div class="model-controls">
+        <select id="model-selection"></select>
+        <button id="download">
+            Download
+        </button>
+    </div>
+    <p id="download-status" class="hidden"></p>
+    <p>
+        2: Indtast dine vare 
+    </p>
+    <textarea id="grocery-list" placeholder="Indtast din indkøbsliste her...&#10;Hver vare på en ny linje"></textarea>
+    <button id="capture-btn" disabled>Køb ind for mig</button>
+    <div id="status"></div>
+
+    <script src="popup.js" type="module"></script>
+</body>
+
+</html>
