@@ -21,9 +21,9 @@
     "default_popup": "popup.html",
     "default_title": "Nemlai",
     "default_icon": {
-      "16": "icons/icon_16.svg",
-      "48": "icons/icon_48.svg",
-      "128": "icons/icon_128.svg"
+      "16": "icons/icon_16.png",
+      "48": "icons/icon_48.png",
+      "128": "icons/icon_128.png"
     }
   },
   "content_scripts": [
@@ -43,8 +43,8 @@
     "service_worker": "background.js"
   },
   "icons": {
-    "16": "icons/icon_16.svg",
-    "48": "icons/icon_48.svg",
-    "128": "icons/icon_128.svg"
+    "16": "icons/icon_16.png",
+    "48": "icons/icon_48.png",
+    "128": "icons/icon_128.png"
   }
 }

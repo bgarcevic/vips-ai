@@ -19,5 +19,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }, 3000);
         
         sendResponse({success: true});
+    } else if (request.action === 'showBanner') {
+        // Show banner message
+        const banner = document.createElement('div');
+        banner.textContent = request.message;
+        banner.className = 'nemlai-banner';
+        
+        document.body.appendChild(banner);
+        
+        // Remove the banner after 3 seconds
+        setTimeout(() => {
+            if (banner.parentNode) {
+                banner.parentNode.removeChild(banner);
+            }
+        }, 3000);
+        
+        sendResponse({success: true});
     }
 });

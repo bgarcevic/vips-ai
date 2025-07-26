@@ -121,6 +121,47 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    async function addToBasket(token, productId) {
+        try {
+            console.log(`Adding product ${productId} to basket...`);
+            
+            const payload = {
+                ProductId: productId,
+                quantity: 1,
+                AffectPartialQuantity: false,
+                disableQuantityValidation: false
+            };
+
+            const response = await fetch('https://www.nemlig.com/webapi/basket/AddToBasket', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Origin': 'https://www.nemlig.com',
+                    'Referer': 'https://www.nemlig.com/',
+                },
+                body: JSON.stringify(payload)
+            });
+
+            console.log(`AddToBasket response status for product ${productId}:`, response.status);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`Failed to add product ${productId} to basket:`, response.status, errorText);
+                throw new Error(`Kunne ikke tilføje til kurv: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log(`Product ${productId} successfully added to basket:`, data);
+            
+            return { success: true, data };
+        } catch (error) {
+            console.error(`Error adding product ${productId} to basket:`, error);
+            return { success: false, error: error.message };
+        }
+    }
+
     function generateTimestamp() {
         // Generate timestamp in format: AAAAAAAA-0Hjg_CnJ
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
@@ -209,7 +250,7 @@ document.addEventListener('DOMContentLoaded', function () {
         modelSelect.appendChild(option);
     }
 
-    async function sendToLLM(groceryItem, filteredProductData) {
+    async function sendToLLM(groceryItem, filteredProductData, token) {
         try {
             if (engine) {
                 // Use the actual WebLLM engine
@@ -234,7 +275,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 const selectedProduct = filteredProductData.Products.Products.find(p => p.Id === selectedProductId);
 
                 if (selectedProduct) {
-                    return `✅ Valgt: ${selectedProduct.Name} (${selectedProduct.Price} kr)`;
+                    // Add product to basket
+                    const basketResult = await addToBasket(token, selectedProductId);
+                    
+                    if (basketResult.success) {
+                        return `✅ Tilføjet til kurv: ${selectedProduct.Name} (${selectedProduct.Price} kr)`;
+                    } else {
+                        return `⚠️ Valgt men ikke tilføjet: ${selectedProduct.Name} - ${basketResult.error}`;
+                    }
                 } else {
                     return `⚠️ AI kunne ikke vælge et produkt for "${groceryItem}"`;
                 }
@@ -299,7 +347,7 @@ document.addEventListener('DOMContentLoaded', function () {
             console.log(`Filtered data for "${item}":`, filteredData);
 
             // Send to LLM for recommendation
-            const llmRecommendation = await sendToLLM(item, filteredData);
+            const llmRecommendation = await sendToLLM(item, filteredData, token);
             console.log(`LLM recommendation for "${item}":`, llmRecommendation);
 
             return {
@@ -361,8 +409,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 const successCount = searchResults.filter(r => !r.error).length;
                 const errorCount = searchResults.filter(r => r.error).length;
 
+                // Count basket successes
+                const basketSuccessCount = searchResults.filter(r => 
+                    r.llmRecommendation && r.llmRecommendation.includes('Tilføjet til kurv')
+                ).length;
+                
                 // Display LLM recommendations in status
-                let statusMessage = `Søgning færdig! ${successCount} varer analyseret, ${errorCount} fejl\n\nAnbefalinger:\n`;
+                let statusMessage = `Søgning færdig! ${successCount} varer analyseret, ${basketSuccessCount} tilføjet til kurv\n\nResultater:\n`;
 
                 searchResults.forEach(result => {
                     if (result.llmRecommendation) {
@@ -386,10 +439,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
 
                 chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-                    const recommendationCount = searchResults.filter(r => r.llmRecommendation).length;
                     chrome.tabs.sendMessage(tabs[0].id, {
                         action: 'showBanner',
-                        message: `AI-anbefalinger klar: ${recommendationCount} produkter analyseret`
+                        message: `AI-shopping afsluttet: ${basketSuccessCount} produkter tilføjet til kurv`
                     }, function(response) {
                         if (chrome.runtime.lastError) {
                             console.log('Banner message not sent - content script not available:', chrome.runtime.lastError.message);
