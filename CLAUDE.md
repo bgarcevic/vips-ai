@@ -35,11 +35,12 @@ The extension follows standard Chrome Extension architecture:
 
 ## Development Commands
 
-This is a vanilla Chrome extension project without build tools or package managers. Development workflow:
+This is a vanilla Chrome extension project node. Development workflow:
 
-1. **Load Extension**: Load unpacked extension in Chrome Developer Mode from project root
-2. **Reload Extension**: Use Chrome's extension reload button after making changes
-3. **Debug**: 
+1. **Build Project** run npm build
+2. **Load Extension**: Load unpacked extension in Chrome Developer Mode from dist folder after succesfull build. If loaded once, skip to step 3.
+3. **Reload Extension**: Use Chrome's extension reload button after making changes
+4. **Debug**: 
    - Background script: Chrome DevTools > Extensions > Inspect views: background page
    - Content script: Regular DevTools on any webpage
    - Popup: Right-click extension icon > Inspect popup
