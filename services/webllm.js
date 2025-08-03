@@ -6,7 +6,7 @@ import {
 export class WebLLMService {
     constructor() {
         this.engine = null;
-        this.selectedModel = "Llama-3.2-1B-Instruct-q4f32_1-MLC";
+        this.selectedModel = "Llama-3.2-3B-Instruct-q4f32_1-MLC";
         this.availableModels = prebuiltAppConfig?.model_list?.map(m => m.model_id) || [];
         this.systemPrompt = `You are a precise AI grocery shopping assistant for the Danish market. Your task is to analyze a user's request and select the single best product from a provided JSON list of available products.
 
