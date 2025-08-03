@@ -1,76 +1,30 @@
-import {
-    CreateMLCEngine,
-    prebuiltAppConfig,
-} from "@mlc-ai/web-llm";
+import { WebLLMService } from './services/webllm.js';
+import { NemligAPIService } from './services/nemlig-api.js';
+import { generateTimestamp, generateTimeslotUtc, filterProductData, createMinimalResults, generateStatusMessage } from './utils/helpers.js';
 
-/*************** WebLLM logic ***************/
-const messages = [
-    {
-        content: "You are a helpful AI agent helping users.",
-        role: "system",
-    },
-];
+const webllmService = new WebLLMService();
+const nemligService = new NemligAPIService();
 
-const availableModels = prebuiltAppConfig?.model_list?.map(
-    (m) => m.model_id,
-)
-let selectedModel = "Llama-3.2-1B-Instruct-q4f32_1-MLC";
-
-// System prompt for AI grocery shopping assistant
-const GROCERY_ASSISTANT_SYSTEM_PROMPT = `You are a precise AI grocery shopping assistant for the Danish market. Your task is to analyze a user's request and select the single best product from a provided JSON list of available products.
-
-**Rules for Selection:**
-1. Prioritize an exact or close match in the \`Name\` field.
-2. Use \`Labels\` and \`Description\` for specifics. For "organic", match "Øko". For "small", match "små". For quantity, check the \`Description\` (e.g., "1 stk.", "550 g.").
-3. **Default Choice:** If the user's request is generic (e.g., "banan"), choose the most standard, non-organic option, which is usually the cheapest per unit (\`UnitPriceCalc\`).
-4. **Ties:** If multiple products are an equally good match, select the one with the lower \`Price\`.
-
-**CRITICAL OUTPUT REQUIREMENT:**
-You MUST respond with ONLY the product ID as a plain string. Do NOT include any explanations, formatting, or additional text. Just the ID number.
-`;
-
-// Function to format user prompt with grocery item and product data
-function formatUserPrompt(groceryItem, filteredProductData) {
-    return `Please select the best product ID for: "${groceryItem}"
-
-Available Products:
-${JSON.stringify(filteredProductData, null, 2)}`;
-}
-
-// Callback function for initializing progress
 function updateEngineInitProgressCallback(report) {
     console.log("initialize", report.progress);
     document.getElementById("download-status").textContent = report.text;
 }
-
-// Create engine instance (will be initialized later)
-let engine = null;
 
 async function initializeWebLLMEngine() {
     try {
         document.getElementById("download-status").classList.remove("hidden");
         document.getElementById("download-status").textContent = "Initialiserer model...";
 
-        selectedModel = document.getElementById("model-selection").value;
+        const selectedModel = document.getElementById("model-selection").value;
+        const result = await webllmService.initializeEngine(selectedModel, updateEngineInitProgressCallback);
 
-        if (!engine) {
-            // Create engine for the first time
-            engine = await CreateMLCEngine(selectedModel, {
-                initProgressCallback: updateEngineInitProgressCallback,
-                temperature: 0.0
-            });
+        if (result.success) {
+            document.getElementById("download-status").textContent = "Model klar til brug!";
+            document.getElementById("capture-btn").disabled = false;
+            console.log("WebLLM engine initialized successfully");
         } else {
-            // Reload with new model
-            const config = {
-                temperature: 0.0,
-            };
-            await engine.reload(selectedModel, config);
+            throw new Error(result.error);
         }
-
-        document.getElementById("download-status").textContent = "Model klar til brug!";
-        document.getElementById("capture-btn").disabled = false;
-        console.log("WebLLM engine initialized successfully");
-
     } catch (error) {
         console.error("Failed to initialize WebLLM engine:", error);
         document.getElementById("download-status").textContent = `Fejl: ${error.message}`;
@@ -82,214 +36,50 @@ document.addEventListener('DOMContentLoaded', function () {
     const captureBtn = document.getElementById('capture-btn');
     const status = document.getElementById('status');
 
-    async function getBearerToken() {
-        try {
-            console.log('Requesting bearer token from Nemlig.com...');
-            const response = await fetch('https://www.nemlig.com/webapi/Token', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                },
-            });
-
-            console.log('Token response status:', response.status);
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Token request failed:', response.status, errorText);
-                throw new Error(`Token request failed: ${response.status} - ${errorText}`);
-            }
-
-            const data = await response.json();
-            console.log('Token response received:', {
-                upgraded: data.upgraded,
-                token_type: data.token_type,
-                expires_in: data.expires_in,
-                has_access_token: !!data.access_token
-            });
-
-            if (!data.access_token) {
-                console.error('No access_token in response:', data);
-                throw new Error('No access_token found in response');
-            }
-
-            return data.access_token;
-        } catch (error) {
-            console.error('Failed to get bearer token:', error);
-            throw error;
-        }
-    }
-
-    async function addToBasket(token, productId) {
-        try {
-            console.log(`Adding product ${productId} to basket...`);
-            
-            const payload = {
-                ProductId: productId,
-                quantity: 1,
-                AffectPartialQuantity: false,
-                disableQuantityValidation: false
-            };
-
-            const response = await fetch('https://www.nemlig.com/webapi/basket/AddToBasket', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'Origin': 'https://www.nemlig.com',
-                    'Referer': 'https://www.nemlig.com/',
-                },
-                body: JSON.stringify(payload)
-            });
-
-            console.log(`AddToBasket response status for product ${productId}:`, response.status);
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`Failed to add product ${productId} to basket:`, response.status, errorText);
-                throw new Error(`Kunne ikke tilføje til kurv: ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log(`Product ${productId} successfully added to basket:`, data);
-            
-            return { success: true, data };
-        } catch (error) {
-            console.error(`Error adding product ${productId} to basket:`, error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    function generateTimestamp() {
-        // Generate timestamp in format: AAAAAAAA-0Hjg_CnJ
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
-        let timestamp = 'AAAAAAAA-';
-        for (let i = 0; i < 8; i++) {
-            timestamp += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return timestamp;
-    }
-
-    function generateTimeslotUtc() {
-        // Generate timeslot in format: 2025072308-120-600
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const hour = String(now.getHours()).padStart(2, '0');
-        return `${year}${month}${day}${hour}-120-600`;
-    }
-
-    function filterProductData(apiResponse) {
-        if (!apiResponse.Products || !apiResponse.Products.Products) {
-            return {
-                Products: { Products: [], NumFound: 0 },
-                ProductsNumFound: 0
-            };
-        }
-
-        const filteredProducts = apiResponse.Products.Products
-            .map(product => {
-                const filtered = {
-                    Id: product.Id,
-                    Name: product.Name,
-                    Description: product.Description,
-                    Availability: {
-                        IsAvailableInStock: product.Availability?.IsAvailableInStock || false
-                    },
-                    Price: product.Price,
-                    UnitPriceCalc: product.UnitPriceCalc,
-                    UnitPriceLabel: product.UnitPriceLabel,
-                    Labels: product.Labels || []
-                };
-
-                // Include Campaign data if it exists
-                if (product.Campaign) {
-                    filtered.Campaign = {
-                        MinQuantity: product.Campaign.MinQuantity,
-                        TotalPrice: product.Campaign.TotalPrice,
-                        CampaignPrice: product.Campaign.CampaignPrice,
-                        Type: product.Campaign.Type,
-                        DiscountSavings: product.Campaign.DiscountSavings
-                    };
-                }
-
-                return filtered;
-            });
-
-        return {
-            Products: {
-                Products: filteredProducts,
-                NumFound: filteredProducts.length
-            },
-            ProductsNumFound: filteredProducts.length
-        };
-    }
 
     // Populate model selection dropdown
     const modelSelect = document.getElementById("model-selection");
     try {
+        const availableModels = webllmService.getAvailableModels();
+        const currentModel = webllmService.getCurrentModel();
+        
         availableModels.forEach(modelId => {
             const option = document.createElement("option");
             option.value = modelId;
             option.textContent = modelId;
-            if (modelId === selectedModel) {
+            if (modelId === currentModel) {
                 option.selected = true;
             }
             modelSelect.appendChild(option);
         });
     } catch (error) {
         console.error("Failed to populate model dropdown:", error);
-        // Add a fallback option
         const option = document.createElement("option");
-        option.value = selectedModel;
-        option.textContent = selectedModel;
+        option.value = webllmService.getCurrentModel();
+        option.textContent = webllmService.getCurrentModel();
         option.selected = true;
         modelSelect.appendChild(option);
     }
 
     async function sendToLLM(groceryItem, filteredProductData, token) {
         try {
-            if (engine) {
-                // Use the actual WebLLM engine
-                const userPrompt = formatUserPrompt(groceryItem, filteredProductData);
-
-                const response = await engine.chat.completions.create({
-                    messages: [
-                        { role: "system", content: GROCERY_ASSISTANT_SYSTEM_PROMPT },
-                        { role: "user", content: userPrompt }
-                    ]
-                });
-
-                let selectedProductId = response.choices[0].message.content.trim();
-                
-                // Extract only the numeric product ID using regex
-                const match = selectedProductId.match(/\d+/);
-                selectedProductId = match ? match[0] : selectedProductId;
-
-                console.log('Cleaned product ID:', selectedProductId)
-
-                // Find the selected product for display
-                const selectedProduct = filteredProductData.Products.Products.find(p => p.Id === selectedProductId);
-
-                if (selectedProduct) {
-                    // Add product to basket
-                    const basketResult = await addToBasket(token, selectedProductId);
-                    
-                    if (basketResult.success) {
-                        return `✅ Tilføjet til kurv: ${selectedProduct.Name} (${selectedProduct.Price} kr)`;
-                    } else {
-                        return `⚠️ Valgt men ikke tilføjet: ${selectedProduct.Name} - ${basketResult.error}`;
-                    }
-                } else {
-                    return `⚠️ AI kunne ikke vælge et produkt for "${groceryItem}"`;
-                }
-            } else {
+            if (!webllmService.isEngineReady()) {
                 return `⚠️ AI agent ikke klar - download først din model`;
             }
 
+            const { productId, product } = await webllmService.selectProduct(groceryItem, filteredProductData);
+
+            if (product) {
+                const basketResult = await nemligService.addToBasket(token, productId);
+                
+                if (basketResult.success) {
+                    return `✅ Tilføjet til kurv: ${product.Name} (${product.Price} kr)`;
+                } else {
+                    return `⚠️ Valgt men ikke tilføjet: ${product.Name} - ${basketResult.error}`;
+                }
+            } else {
+                return `⚠️ AI kunne ikke vælge et produkt for "${groceryItem}"`;
+            }
         } catch (error) {
             console.error('LLM API error:', error);
             return `Fejl ved analyse af "${groceryItem}": ${error.message}`;
@@ -301,52 +91,10 @@ document.addEventListener('DOMContentLoaded', function () {
             const timestamp = generateTimestamp();
             const timeslotUtc = generateTimeslotUtc();
 
-            // Build URL with all required parameters from the website
-            const params = new URLSearchParams({
-                query: item.trim(),
-                take: '20',
-                skip: '0',
-                recipeCount: '0',
-                timestamp: timestamp,
-                timeslotUtc: timeslotUtc,
-                deliveryZoneId: '1'
-            });
-
-            const url = `https://webapi.prod.knl.nemlig.it/searchgateway/api/search?${params.toString()}`;
-
-            console.log(`Searching for "${item}" with URL:`, url);
-            console.log('Using token (first 20 chars):', token.substring(0, 20) + '...');
-
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/json, text/plain, */*',
-                    'Accept-Language': 'en-US,en;q=0.9,da;q=0.8',
-                    'Origin': 'https://www.nemlig.com',
-                    'Referer': 'https://www.nemlig.com/',
-                    'Sec-Fetch-Dest': 'empty',
-                    'Sec-Fetch-Mode': 'cors',
-                    'Sec-Fetch-Site': 'cross-site'
-                },
-            });
-
-            console.log(`Search response status for "${item}":`, response.status);
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`Search failed for "${item}":`, response.status, errorText);
-                throw new Error(`Search failed for "${item}": ${response.status} - ${errorText}`);
-            }
-
-            const data = await response.json();
-            console.log(`Search successful for "${item}":`, data?.Products?.Products?.length || 0, 'products found');
-
-            // Filter the product data to essential fields only
+            const data = await nemligService.searchProduct(token, item, timestamp, timeslotUtc);
             const filteredData = filterProductData(data);
             console.log(`Filtered data for "${item}":`, filteredData);
 
-            // Send to LLM for recommendation
             const llmRecommendation = await sendToLLM(item, filteredData, token);
             console.log(`LLM recommendation for "${item}":`, llmRecommendation);
 
@@ -376,11 +124,9 @@ document.addEventListener('DOMContentLoaded', function () {
         status.style.color = '#007bff';
 
         try {
-            // Get bearer token
-            const token = await getBearerToken();
+            const token = await nemligService.getBearerToken();
             console.log('Bearer token obtained successfully');
 
-            // Search for each grocery item
             const searchResults = [];
             for (let i = 0; i < groceryItems.length; i++) {
                 const item = groceryItems[i];
@@ -389,17 +135,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 const result = await searchGroceryItem(token, item);
                 searchResults.push(result);
 
-                // Log each result to console
                 console.log(`Search result for "${item}":`, result);
             }
 
-            // Save to storage - only keep essential data to avoid quota exceeded
-            const minimalResults = searchResults.map(result => ({
-                item: result.item,
-                llmRecommendation: result.llmRecommendation,
-                error: result.error,
-                productCount: result.data?.ProductsNumFound || 0
-            }));
+            const minimalResults = createMinimalResults(searchResults);
 
             chrome.storage.sync.set({
                 groceryList: groceryItems,
@@ -408,29 +147,17 @@ document.addEventListener('DOMContentLoaded', function () {
             }, function () {
                 const successCount = searchResults.filter(r => !r.error).length;
                 const errorCount = searchResults.filter(r => r.error).length;
-
-                // Count basket successes
                 const basketSuccessCount = searchResults.filter(r => 
                     r.llmRecommendation && r.llmRecommendation.includes('Tilføjet til kurv')
                 ).length;
                 
-                // Display LLM recommendations in status
-                let statusMessage = `Søgning færdig! ${successCount} varer analyseret, ${basketSuccessCount} tilføjet til kurv\n\nResultater:\n`;
-
-                searchResults.forEach(result => {
-                    if (result.llmRecommendation) {
-                        statusMessage += `• ${result.llmRecommendation}\n`;
-                    } else if (result.error) {
-                        statusMessage += `• Fejl for "${result.item}": ${result.error}\n`;
-                    }
-                });
+                const statusMessage = generateStatusMessage(searchResults);
 
                 status.textContent = statusMessage;
                 status.style.color = errorCount > 0 ? '#ffc107' : '#28a745';
-                status.style.whiteSpace = 'pre-wrap'; // Allow line breaks
-                status.style.fontSize = '12px'; // Smaller font for more text
+                status.style.whiteSpace = 'pre-wrap';
+                status.style.fontSize = '12px';
 
-                // Log summary to console
                 console.log('Search summary:', {
                     successCount,
                     errorCount,
